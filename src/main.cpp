@@ -3,13 +3,11 @@
 #include <pybind11/numpy.h>
 #include <vector>
 #include <chrono>
+#include <stdexcept>
 #include "patcher_api.h"
 #include "csr.h"
 #include "cluster.h"
 #include "patcher.h"
-
-#define STRINGIFY(x) #x
-#define MACRO_STRINGIFY(x) STRINGIFY(x)
 
 int add(int i, int j) {
     return i + j;
@@ -82,11 +80,7 @@ PYBIND11_MODULE(meshtaichi_patcher_core, m) {
         Some other explanation about the subtract function.
     )pbdoc");
 
-#ifdef VERSION_INFO
-    m.attr("__version__") = MACRO_STRINGIFY(VERSION_INFO);
-#else
-    m.attr("__version__") = "dev";
-#endif
+    m.attr("__version__") = VERSION_INFO;
 
     m.def("run_mesh", &MeshTaichi::run_mesh);
     py::class_<MeshTaichi::Patcher>(m, "Patcher")
@@ -140,6 +134,7 @@ PYBIND11_MODULE(meshtaichi_patcher_core, m) {
             if (name == "value") return vector2np(local_rel.value);
             if (name == "patch_offset") return vector2np(local_rel.patch_offset);
             if (name == "offset") return vector2np(local_rel.offset);
+            throw std::runtime_error("get_relation_arr: unsupported array name: " + name);
         })
         .def("get_mesh_x", [](MeshTaichi::Patcher *patcher){
             //return py::to_pyarray(patcher->mesh->verts);

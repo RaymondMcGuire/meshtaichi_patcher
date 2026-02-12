@@ -1,4 +1,5 @@
 #include "patcher_mesh.h"
+#include <random>
 
 namespace MeshTaichi {
 
@@ -86,8 +87,8 @@ std::shared_ptr<Mesh> load_obj(std::string filename, bool shuffle) {
     for (int i = 0; i < n; i++) {
       perm[i] = i;
     }
-    srand(233);
-    std::random_shuffle(perm.begin(), perm.end(), [](int i){return std::rand() % i;});
+    std::mt19937 rng(233);
+    std::shuffle(perm.begin(), perm.end(), rng);
     mesh->verts.resize(n);
   }
 
@@ -184,8 +185,8 @@ std::shared_ptr<Mesh> load_tet(std::string filename, bool shuffle) {
     for (int i = 0; i < num_verts; i++) {
       perm[i] = i;
     }
-    srand(233);
-    std::random_shuffle(perm.begin(), perm.end(), [](int i){return std::rand() % i;});
+    std::mt19937 rng(233);
+    std::shuffle(perm.begin(), perm.end(), rng);
   }
   for (int i = 0; i < num_verts; ++i) {
     float x, y, z;

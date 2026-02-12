@@ -1,5 +1,6 @@
 #include "cluster.h"
 #include <algorithm>
+#include <iostream>
 #include <queue>
 #include <set>
 

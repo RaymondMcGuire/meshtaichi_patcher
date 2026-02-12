@@ -360,7 +360,7 @@ void Patcher::build_patches(std::unordered_set<MeshElementType, MEHash> eles,
             ++pi.total_elements[type];
             pi.l2g[type].push_back(e2);
             pi.ribbon_g2l[type].insert(std::make_pair(
-              e2, pi.l2g[type].size() - 1));
+              e2, static_cast<int>(pi.l2g[type].size() - 1)));
           }
         };
         ribboning(e1, p1, e2, p2);
@@ -403,7 +403,7 @@ void Patcher::build_patches(std::unordered_set<MeshElementType, MEHash> eles,
           } else {
             ++pi.total_elements[to_type];
             pi.l2g[to_type].push_back(idx);
-            pi.ribbon_g2l[to_type].insert(std::make_pair(idx, pi.l2g[to_type].size() - 1));
+            pi.ribbon_g2l[to_type].insert(std::make_pair(idx, static_cast<int>(pi.l2g[to_type].size() - 1)));
             return static_cast<int>(pi.l2g[to_type].size() - 1);
           }
         };

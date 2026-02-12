@@ -1,4 +1,5 @@
 build/
+build_vs_debug/
 dist/
 _build/
 _generate/
@@ -7,8 +8,12 @@ _generate/
 *.egg-info
 *env*
 *.obj
+meshtaichi_patcher_core*.pyd
+meshtaichi_patcher_core*.pdb
 
 example/bunny
 **/imgui.ini
 example/**/models
 exp
+logs/*
+!logs/.gitkeep
