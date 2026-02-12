@@ -4,6 +4,7 @@ import taichi as ti
 import pprint, re, os, subprocess, hashlib
 from . import meshpatcher, relation
 from os import path
+from collections import defaultdict
 
 def load_mesh(meshes, relations=[], 
               patch_size=256, 
@@ -153,7 +154,9 @@ def load_mesh_rawdata(filename):
         ans[0] = read_tetgen(name_node)[0].reshape(-1, 3)
         ans[3] = read_tetgen(name_ele)[0].reshape(-1, 4)
         if os.path.isfile(name_face): 
-            ans["face"] = read_tetgen(name_face)[0].reshape(-1, 3)
+            ans["face"] = _read_tetgen_face_flexible(name_face)
+    elif ext_name == 'mesh':
+        ans = _load_fTetWild_mesh(filename)
     else:
         ans = {}
         import importlib.util
@@ -173,5 +176,98 @@ def load_mesh_rawdata(filename):
             if len(ml_m.edge_matrix()):
                 ans[1] = ml_m.edge_matrix()
             ans[2] = ml_m.face_matrix()
+    return ans
+
+
+def _read_tetgen_face_flexible(filename):
+    """Read TetGen .face with either indexed lines or plain 3-column lines."""
+    with open(filename, "r") as f:
+        lines = [ln.strip() for ln in f if ln.strip() and not ln.lstrip().startswith("#")]
+    if not lines:
+        return np.zeros((0, 3), dtype=np.int32)
+
+    n = int(lines[0].split()[0])
+    faces = []
+    for ln in lines[1:]:
+        nums = [int(x) for x in ln.split()]
+        if len(nums) >= 4:
+            # Standard TetGen style: id v0 v1 v2 [marker]
+            faces.append(nums[1:4])
+        elif len(nums) == 3:
+            # Compatibility mode: v0 v1 v2
+            faces.append(nums)
+        if len(faces) >= n:
+            break
+    return np.asarray(faces, dtype=np.int32).reshape(-1, 3)
+
+
+def _extract_surface_faces_from_tets(tets):
+    face_count = defaultdict(int)
+    face_oriented = {}
+    for v0, v1, v2, v3 in tets:
+        for a, b, c in [(v1, v2, v3), (v0, v3, v2), (v0, v1, v3), (v0, v2, v1)]:
+            key = tuple(sorted((a, b, c)))
+            face_count[key] += 1
+            if key not in face_oriented:
+                face_oriented[key] = (a, b, c)
+    surf = [face_oriented[k] for k, cnt in face_count.items() if cnt == 1]
+    if not surf:
+        return np.zeros((0, 3), dtype=np.int32)
+    return np.asarray(surf, dtype=np.int32).reshape(-1, 3)
+
+
+def _load_fTetWild_mesh(filename):
+    """Load fTetWild .mesh (MEDIT) into raw arrays compatible with MeshPatcher."""
+    with open(filename, "r") as f:
+        raw_lines = [ln.strip() for ln in f if ln.strip()]
+
+    lines = []
+    for ln in raw_lines:
+        if "#" in ln:
+            ln = ln.split("#", 1)[0].strip()
+        if ln:
+            lines.append(ln)
+
+    i = 0
+    n = len(lines)
+    verts = []
+    tets = []
+    tris = []
+    while i < n:
+        token = lines[i].lower()
+        i += 1
+        if token in ("meshversionformatted", "dimension"):
+            if i < n:
+                i += 1
+            continue
+        if token == "vertices":
+            cnt = int(lines[i].split()[0]); i += 1
+            for _ in range(cnt):
+                parts = lines[i].split(); i += 1
+                verts.append([float(parts[0]), float(parts[1]), float(parts[2])])
+            continue
+        if token == "tetrahedra":
+            cnt = int(lines[i].split()[0]); i += 1
+            for _ in range(cnt):
+                parts = lines[i].split(); i += 1
+                # MEDIT is 1-based indexing
+                tets.append([int(parts[0]) - 1, int(parts[1]) - 1, int(parts[2]) - 1, int(parts[3]) - 1])
+            continue
+        if token == "triangles":
+            cnt = int(lines[i].split()[0]); i += 1
+            for _ in range(cnt):
+                parts = lines[i].split(); i += 1
+                tris.append([int(parts[0]) - 1, int(parts[1]) - 1, int(parts[2]) - 1])
+            continue
+        if token == "end":
+            break
+
+    ans = {}
+    ans[0] = np.asarray(verts, dtype=np.float64).reshape(-1, 3)
+    ans[3] = np.asarray(tets, dtype=np.int32).reshape(-1, 4)
+    if tris:
+        ans["face"] = np.asarray(tris, dtype=np.int32).reshape(-1, 3)
+    else:
+        ans["face"] = _extract_surface_faces_from_tets(ans[3])
     return ans
 
