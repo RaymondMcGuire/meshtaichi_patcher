@@ -56,7 +56,10 @@ class CMakeBuild(build_ext):
         # In this example, we pass in the version to C++. You might not need to.
         cmake_args += [f"-DEXAMPLE_VERSION_INFO={self.distribution.get_version()}"]
 
-        if self.compiler.compiler_type != "msvc":
+        is_msvc = self.compiler.compiler_type == "msvc"
+        msvc_uses_msbuild = False
+
+        if not is_msvc:
             # Using Ninja-build since it a) is available as a wheel and b)
             # multithreads automatically. MSVC would require all variables be
             # exported for Ninja to pick it up, which is a little tricky to do.
@@ -74,6 +77,7 @@ class CMakeBuild(build_ext):
 
             # Single config generators are handled "normally"
             single_config = any(x in cmake_generator for x in {"NMake", "Ninja"})
+            msvc_uses_msbuild = not single_config
 
             # CMake allows an arch-in-generator style for backward compatibility
             contains_arch = any(x in cmake_generator for x in {"ARM", "Win64"})
@@ -110,14 +114,29 @@ class CMakeBuild(build_ext):
         num_threads = os.getenv('BUILD_NUM_THREADS', multiprocessing.cpu_count())
         build_args += [f"-j{num_threads}"]
 
+        build_env = os.environ.copy()
+        if msvc_uses_msbuild:
+            # Setuptools removes build_temp immediately after editable wheel
+            # creation. MSBuild node reuse can keep that temp tree locked.
+            build_env["MSBUILDDISABLENODEREUSE"] = "1"
+            build_args += ["--", "/nr:false"]
+            safe_generator = re.sub(r"[^A-Za-z0-9_.-]+", "_", cmake_generator or "default")
+            self.build_temp = os.path.abspath(
+                os.path.join(
+                    "build",
+                    f"cmake-{safe_generator}-{self.plat_name}-{cfg}-"
+                    f"py{sys.version_info.major}{sys.version_info.minor}",
+                )
+            )
+
         if not os.path.exists(self.build_temp):
             os.makedirs(self.build_temp)
 
         subprocess.check_call(
-            ["cmake", ext.sourcedir] + cmake_args, cwd=self.build_temp
+            ["cmake", ext.sourcedir] + cmake_args, cwd=self.build_temp, env=build_env
         )
         subprocess.check_call(
-            ["cmake", "--build", "."] + build_args, cwd=self.build_temp
+            ["cmake", "--build", "."] + build_args, cwd=self.build_temp, env=build_env
         )
 
 
